@@ -1,0 +1,748 @@
+// KAMPALA STREET VENDOR MANAGEMENT SYSTEM (KSVMS)
+// Java Pseudocode
+// Cavendish University Uganda | OOP Assignment | Group 6
+
+// 
+// FILE 1: CustomUser.java
+// Abstract base class — defines contract for ALL system users
+// OOP: ABSTRACTION, ENCAPSULATION
+// 
+
+public abstract class CustomUser {
+
+    // Private fields (Encapsulation)
+    private String  entityID;
+    private String  name;
+    private String  email;
+    private String  passwordHash;
+    private String  status;           // "PENDING" | "ACTIVE" | "SUSPENDED"
+    private String  dateRegistered;
+
+    // Constructor
+    public CustomUser(String entityID, String name, String email, String passwordHash) {
+        this.entityID      = entityID;
+        this.name          = name;
+        this.email         = email;
+        this.passwordHash  = passwordHash;
+        this.status        = "PENDING";
+        this.dateRegistered = java.time.LocalDate.now().toString();
+    }
+
+    // Abstract methods — all subclasses MUST implement (Abstraction)
+    public abstract void   register();
+    public abstract String getStatus();
+    public abstract void   displayProfile();
+    public abstract String getRole();     // "VENDOR" | "INSPECTOR" | "ADMINISTRATOR"
+
+    // Authentication
+    public boolean login(String email, String passwordHash) {
+        if (this.email.equals(email) && this.passwordHash.equals(passwordHash)) {
+            System.out.println("Login successful: " + name);
+            return true;
+        }
+        System.out.println("Invalid credentials.");
+        return false;
+    }
+
+    // Getters & Setters (Encapsulation)
+    public String getEntityID()              { return entityID; }
+    public String getName()                  { return name; }
+    public String getEmail()                 { return email; }
+    public String getDateRegistered()        { return dateRegistered; }
+    public void   setStatus(String status)   { this.status = status; }
+    public String getRawStatus()             { return status; }
+}
+
+
+// 
+// FILE 2: Vendor.java
+// Represents a street vendor seeking or holding a market stall
+// OOP: INHERITANCE (extends CustomUser), POLYMORPHISM
+// 
+
+public class Vendor extends CustomUser {
+
+    // Additional private fields
+    private String  vendorType;         // "Food" | "Clothing" | "Electronics" | "Other"
+    private double  capitalAmount;      // in UGX
+    private String  gender;             // "F" | "M" | "Other"
+    private boolean hasDependants;
+    private String  placeOfResidence;
+    private String  dateOfBirth;
+    private String  assignedMarket;     // null until allocated
+    private String  licenceNumber;      // null until registered
+
+    // Constructor
+    public Vendor(String id, String name, String email, String passwordHash,
+                  String vendorType, double capitalAmount,
+                  String gender, boolean hasDependants,
+                  String residence, String dob) {
+
+        super(id, name, email, passwordHash);   // call CustomUser constructor
+        this.vendorType       = vendorType;
+        this.capitalAmount    = capitalAmount;
+        this.gender           = gender;
+        this.hasDependants    = hasDependants;
+        this.placeOfResidence = residence;
+        this.dateOfBirth      = dob;
+        this.assignedMarket   = null;
+        this.licenceNumber    = null;
+    }
+
+    // register() — overrides CustomUser (Polymorphism)
+    @Override
+    public void register() {
+        int currentYear    = java.time.LocalDate.now().getYear();
+        this.licenceNumber = "KCCA-" + getEntityID() + "-" + currentYear;
+        setStatus("ACTIVE");
+        System.out.println("Vendor registered successfully.");
+        System.out.println("Licence Number : " + licenceNumber);
+        System.out.println("Status         : " + getStatus());
+    }
+
+    // displayProfile() — overrides CustomUser (Polymorphism)
+    @Override
+    public void displayProfile() {
+        System.out.println("= VENDOR PROFILE =");
+        System.out.println("  ID              : " + getEntityID());
+        System.out.println("  Name            : " + getName());
+        System.out.println("  Vendor Type     : " + vendorType);
+        System.out.println("  Capital (UGX)   : " + capitalAmount);
+        System.out.println("  Gender          : " + gender);
+        System.out.println("  Has Dependants  : " + hasDependants);
+        System.out.println("  Residence       : " + placeOfResidence);
+        System.out.println("  Assigned Market : " + (assignedMarket != null ? assignedMarket : "Not yet assigned"));
+        System.out.println("  Licence Number  : " + (licenceNumber  != null ? licenceNumber  : "Not yet registered"));
+        System.out.println("  Status          : " + getStatus());
+        System.out.println("  Registered On   : " + getDateRegistered());
+    }
+
+    // getStatus() — overrides CustomUser (Polymorphism)
+    @Override
+    public String getStatus() {
+        return licenceNumber != null ? getRawStatus() : "UNREGISTERED";
+    }
+
+    // getRole() — overrides CustomUser
+    @Override
+    public String getRole() { return "VENDOR"; }
+
+    // Priority score for equitable space allocation
+    // Female vendors and those with dependants score higher
+    // (Based on Whitesell et al. 2025 gender-equity recommendation)
+    public double getPriorityScore() {
+        double score = 1.0;
+        if (gender.equalsIgnoreCase("F"))  score += 0.2;
+        if (hasDependants)                 score += 0.1;
+        return score;
+    }
+
+    // Getters & Setters
+    public String  getVendorType()                  { return vendorType; }
+    public double  getCapitalAmount()               { return capitalAmount; }
+    public String  getGender()                      { return gender; }
+    public boolean hasDependants()                  { return hasDependants; }
+    public String  getLicenceNumber()               { return licenceNumber; }
+    public String  getAssignedMarket()              { return assignedMarket; }
+    public void    setAssignedMarket(String market) { this.assignedMarket = market; }
+}
+
+
+// 
+// FILE 3: KCCAOfficial.java
+// Represents a KCCA officer: Inspector or Administrator
+// OOP: INHERITANCE, POLYMORPHISM, Role-Based Access Control
+// 
+
+public class KCCAOfficial extends CustomUser {
+
+    // Role constants
+    public static final String ROLE_INSPECTOR     = "INSPECTOR";
+    public static final String ROLE_ADMINISTRATOR = "ADMINISTRATOR";
+
+    // Private fields
+    private String role;          // ROLE_INSPECTOR | ROLE_ADMINISTRATOR
+    private String assignedZone;  // e.g. "CBD", "Nakawa", "Kawempe"
+    private String badgeNumber;
+
+    // Constructor
+    public KCCAOfficial(String id, String name, String email,
+                        String passwordHash, String role, String zone) {
+        super(id, name, email, passwordHash);
+        this.role         = role;
+        this.assignedZone = zone;
+        this.badgeNumber  = "KCA-" + id;
+    }
+
+    // register() — overrides CustomUser (Polymorphism)
+    @Override
+    public void register() {
+        setStatus("ACTIVE");
+        System.out.println("Officer registered: " + getName() + " | Role: " + role);
+        System.out.println("Badge: " + badgeNumber + " | Zone: " + assignedZone);
+    }
+
+    // displayProfile() — overrides CustomUser (Polymorphism)
+    @Override
+    public void displayProfile() {
+        System.out.println("= KCCA OFFICER PROFILE =");
+        System.out.println("  ID      : " + getEntityID());
+        System.out.println("  Name    : " + getName());
+        System.out.println("  Role    : " + role);
+        System.out.println("  Badge   : " + badgeNumber);
+        System.out.println("  Zone    : " + assignedZone);
+        System.out.println("  Status  : " + getStatus());
+    }
+
+    // getStatus() — overrides CustomUser (Polymorphism)
+    @Override
+    public String getStatus() { return "OFFICIAL — " + getRawStatus(); }
+
+    // getRole() — overrides CustomUser
+    @Override
+    public String getRole() { return role; }
+
+    // Role-Based Access Control helpers
+    public boolean canAccessAdminFunctions() {
+        return role.equals(ROLE_ADMINISTRATOR);
+    }
+
+    public boolean canAssignSpaces() {
+        return role.equals(ROLE_INSPECTOR) || role.equals(ROLE_ADMINISTRATOR);
+    }
+
+    // Officer-led vendor relocation
+    public void relocateVendor(Vendor vendor, MarketSpace space) {
+        if (!canAssignSpaces()) {
+            System.out.println("Access denied: insufficient role permissions.");
+            return;
+        }
+        System.out.println(role + " " + getName() + " relocating: " + vendor.getName());
+        boolean success = space.assignVendor(vendor);
+        if (success) {
+            vendor.register();
+            AuditLog.record(getEntityID(), "RELOCATE", vendor.getEntityID(), space.getSpaceID());
+        }
+    }
+
+    // Getters
+    public String getAssignedZone() { return assignedZone; }
+    public String getBadgeNumber()  { return badgeNumber; }
+}
+
+
+// 
+// FILE 4: MarketSpace.java
+// Represents a single market stall or trading space
+// OOP: ENCAPSULATION, Composition with Vendor
+// 
+
+public class MarketSpace {
+
+    // Private fields (Encapsulation)
+    private String  spaceID;
+    private String  marketName;
+    private String  location;          // e.g. "Usafi Market, Stall 12"
+    private String  zone;              // e.g. "CBD", "Nakawa"
+    private double  monthlyRent;       // in UGX
+    private boolean isOccupied;
+    private String  assignedVendorID;  // null when vacant
+    private String  marketType;        // "PUBLIC" | "PRIVATE"
+
+    // Constructor
+    public MarketSpace(String spaceID, String marketName, String location,
+                       String zone, double monthlyRent, String marketType) {
+        this.spaceID          = spaceID;
+        this.marketName       = marketName;
+        this.location         = location;
+        this.zone             = zone;
+        this.monthlyRent      = monthlyRent;
+        this.isOccupied       = false;
+        this.assignedVendorID = null;
+        this.marketType       = marketType;
+    }
+
+    // Assign a vendor to this space
+    public boolean assignVendor(Vendor vendor) {
+        if (!isOccupied) {
+            this.isOccupied       = true;
+            this.assignedVendorID = vendor.getEntityID();
+            vendor.setAssignedMarket(location);
+            System.out.println("Space " + spaceID + " assigned to " + vendor.getName());
+            System.out.println("Market: " + marketName + " | Rent: UGX " + monthlyRent);
+            return true;
+        }
+        System.out.println("Space " + spaceID + " is already occupied.");
+        return false;
+    }
+
+    // Vacate this space
+    public void vacateSpace() {
+        if (isOccupied) {
+            System.out.println("Space " + spaceID + " vacated (was: " + assignedVendorID + ")");
+            this.isOccupied       = false;
+            this.assignedVendorID = null;
+        } else {
+            System.out.println("Space " + spaceID + " is already vacant.");
+        }
+    }
+
+    // Display space details
+    public void displaySpaceInfo() {
+        System.out.println("[" + spaceID + "] " + marketName + " | " + location);
+        System.out.println("  Rent   : UGX " + monthlyRent);
+        System.out.println("  Status : " + (isOccupied ? "OCCUPIED by " + assignedVendorID : "AVAILABLE"));
+        System.out.println("  Zone   : " + zone + " | Type: " + marketType);
+    }
+
+    // Getters
+    public String  getSpaceID()          { return spaceID; }
+    public String  getMarketName()       { return marketName; }
+    public String  getLocation()         { return location; }
+    public String  getZone()             { return zone; }
+    public double  getMonthlyRent()      { return monthlyRent; }
+    public boolean isOccupied()          { return isOccupied; }
+    public String  getAssignedVendorID() { return assignedVendorID; }
+    public String  getMarketType()       { return marketType; }
+}
+
+
+// 
+// FILE 5: GrievanceReport.java
+// Tracks vendor complaints  replaces the political voice lost
+// when elected KCC was replaced by appointed KCCA (Young, 2017)
+// OOP: ENCAPSULATION
+// 
+
+public class GrievanceReport {
+
+    // Grievance type constants
+    public static final String TYPE_UNFAIR_EVICTION    = "UNFAIR_EVICTION";
+    public static final String TYPE_SPACE_UNAVAILABLE  = "SPACE_UNAVAILABLE";
+    public static final String TYPE_OFFICER_MISCONDUCT = "OFFICER_MISCONDUCT";
+    public static final String TYPE_OTHER              = "OTHER";
+
+    // Status constants
+    public static final String STATUS_OPEN         = "OPEN";
+    public static final String STATUS_UNDER_REVIEW = "UNDER_REVIEW";
+    public static final String STATUS_RESOLVED     = "RESOLVED";
+
+    // Private fields (Encapsulation)
+    private String grievanceID;
+    private String vendorID;
+    private String vendorName;
+    private String type;
+    private String details;
+    private String dateSubmitted;
+    private String status;
+    private String resolutionNotes;   // filled by Administrator on resolve
+
+    // Constructor
+    public GrievanceReport(String grievanceID, Vendor vendor, String type, String details) {
+        this.grievanceID     = grievanceID;
+        this.vendorID        = vendor.getEntityID();
+        this.vendorName      = vendor.getName();
+        this.type            = type;
+        this.details         = details;
+        this.dateSubmitted   = java.time.LocalDate.now().toString();
+        this.status          = STATUS_OPEN;
+        this.resolutionNotes = null;
+        System.out.println("Grievance " + grievanceID + " submitted by " + vendorName);
+    }
+
+    // Update grievance status  Administrators only (enforced by VendorManagementSystem)
+    public void updateStatus(String newStatus, String notes) {
+        this.status          = newStatus;
+        this.resolutionNotes = notes;
+        System.out.println("Grievance " + grievanceID + " updated to: " + newStatus);
+    }
+
+    // Display grievance summary
+    public void displaySummary() {
+        System.out.println("[" + grievanceID + "] " + type + " | " + status);
+        System.out.println("  Vendor  : " + vendorName + " (" + vendorID + ")");
+        System.out.println("  Date    : " + dateSubmitted);
+        System.out.println("  Details : " + details);
+        if (resolutionNotes != null)
+            System.out.println("  Notes   : " + resolutionNotes);
+    }
+
+    // Getters
+    public String getGrievanceID()   { return grievanceID; }
+    public String getVendorID()      { return vendorID; }
+    public String getType()          { return type; }
+    public String getStatus()        { return status; }
+    public String getDateSubmitted() { return dateSubmitted; }
+}
+
+
+// 
+// FILE 6: AuditLog.java
+// Immutable log of all system actions — anti-corruption measure
+// OOP: Static utility class, ENCAPSULATION
+// 
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class AuditLog {
+
+    // Static singleton log — cannot be deleted by normal users
+    private static final List<String> log = new ArrayList<>();
+
+    // Record an action
+    public static void record(String officerID, String action,
+                               String targetID, String notes) {
+        String timestamp = java.time.LocalDateTime.now().toString();
+        String entry = "[" + timestamp + "]"
+                     + " Officer:" + officerID
+                     + " | Action:" + action
+                     + " | Target:" + targetID
+                     + " | Notes:"  + notes;
+        log.add(entry);
+        System.out.println("AUDIT: " + entry);
+    }
+
+    // Print full audit trail
+    public static void printFullLog() {
+        System.out.println("= FULL AUDIT LOG =");
+        if (log.isEmpty()) {
+            System.out.println("  No entries recorded.");
+        } else {
+            for (String entry : log) {
+                System.out.println(entry);
+            }
+        }
+        System.out.println("");
+    }
+
+    // Get total log entry count
+    public static int getLogCount() { return log.size(); }
+
+    // Private constructor — prevents instantiation
+    private AuditLog() {}
+}
+
+
+// 
+// FILE 7: VendorManagementSystem.java
+// Main controller — orchestrates all KSVMS operations
+// OOP: Composition, Polymorphism, Stream API
+// 
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+public class VendorManagementSystem {
+
+    // Core data stores
+    private List<Vendor>          vendors    = new ArrayList<>();
+    private List<MarketSpace>     spaces     = new ArrayList<>();
+    private List<KCCAOfficial>    officials  = new ArrayList<>();
+    private List<GrievanceReport> grievances = new ArrayList<>();
+    private int                   grievanceCounter = 1;
+
+    //  SECTION A: ADD ENTITIES 
+
+    public void addVendor(Vendor v)        { vendors.add(v); }
+    public void addMarketSpace(MarketSpace s) { spaces.add(s); }
+    public void addOfficial(KCCAOfficial o) { officials.add(o); }
+
+    //  SECTION B: VENDOR OPERATIONS 
+
+    // Register all pending vendors
+    public void registerAllVendors() {
+        for (Vendor vendor : vendors) {
+            if (vendor.getStatus().equals("UNREGISTERED")) {
+                vendor.register();
+            }
+        }
+    }
+
+    // Search vendors by name, ID, type, or assigned market
+    public List<Vendor> searchVendors(String keyword) {
+        String kw = keyword.toLowerCase();
+        return vendors.stream()
+            .filter(v -> v.getName().toLowerCase().contains(kw)
+                      || v.getEntityID().toLowerCase().contains(kw)
+                      || v.getVendorType().toLowerCase().contains(kw)
+                      || (v.getAssignedMarket() != null &&
+                          v.getAssignedMarket().toLowerCase().contains(kw)))
+            .collect(Collectors.toList());
+    }
+
+    // Update vendor status — Administrator only
+    public void updateVendorStatus(KCCAOfficial officer, String vendorID, String newStatus) {
+        if (!officer.canAccessAdminFunctions()) {
+            System.out.println("Access denied: only Administrators can update vendor status.");
+            return;
+        }
+        for (Vendor v : vendors) {
+            if (v.getEntityID().equals(vendorID)) {
+                v.setStatus(newStatus);
+                AuditLog.record(officer.getEntityID(), "STATUS_UPDATE", vendorID, newStatus);
+                System.out.println("Vendor " + vendorID + " status updated to: " + newStatus);
+                return;
+            }
+        }
+        System.out.println("Vendor not found: " + vendorID);
+    }
+
+    //  SECTION C: SMART SPACE MATCHING 
+
+    // Find the best available space for a vendor based on capital
+    // and gender priority score (Whitesell et al. 2025)
+    public MarketSpace findBestSpace(Vendor vendor) {
+        return spaces.stream()
+            .filter(s -> !s.isOccupied()
+                      && s.getMonthlyRent() <= vendor.getCapitalAmount())
+            .sorted((a, b) -> Double.compare(a.getMonthlyRent(), b.getMonthlyRent()))
+            .findFirst()
+            .orElse(null);
+    }
+
+    // Auto-allocate all unassigned vendors to best available spaces
+    public void autoAllocateAll() {
+        System.out.println("\n Auto-Allocation Starting ");
+        for (Vendor vendor : vendors) {
+            if (vendor.getAssignedMarket()  null) {
+                MarketSpace best = findBestSpace(vendor);
+                if (best != null) {
+                    best.assignVendor(vendor);
+                } else {
+                    System.out.println("No affordable space found for: " + vendor.getName()
+                                     + " (Capital: UGX " + vendor.getCapitalAmount() + ")");
+                }
+            }
+        }
+        System.out.println(" Auto-Allocation Complete \n");
+    }
+
+    //  SECTION D: GRIEVANCE MANAGEMENT 
+
+    // Submit a grievance on behalf of a vendor
+    public void submitGrievance(Vendor vendor, String type, String details) {
+        String gID = "GRV-" + String.format("%04d", grievanceCounter++);
+        GrievanceReport report = new GrievanceReport(gID, vendor, type, details);
+        grievances.add(report);
+    }
+
+    // Resolve a grievance — Administrator only
+    public void resolveGrievance(KCCAOfficial officer, String grievanceID, String notes) {
+        if (!officer.canAccessAdminFunctions()) {
+            System.out.println("Access denied: Administrators only.");
+            return;
+        }
+        for (GrievanceReport g : grievances) {
+            if (g.getGrievanceID().equals(grievanceID)) {
+                g.updateStatus(GrievanceReport.STATUS_RESOLVED, notes);
+                AuditLog.record(officer.getEntityID(), "RESOLVE_GRIEVANCE", grievanceID, notes);
+                return;
+            }
+        }
+        System.out.println("Grievance not found: " + grievanceID);
+    }
+
+    // Print all open grievances (pass null to show all types)
+    public void printGrievanceReport(String filterType) {
+        System.out.println("\n= GRIEVANCE REPORT =");
+        grievances.stream()
+            .filter(g -> filterType  null || g.getType().equals(filterType))
+            .filter(g -> !g.getStatus().equals(GrievanceReport.STATUS_RESOLVED))
+            .forEach(GrievanceReport::displaySummary);
+        System.out.println("\n");
+    }
+
+    //  SECTION E: REPORTING & ANALYTICS 
+
+    // Display all profiles Polymorphism: same method call, different output
+    public void displayAllProfiles() {
+        System.out.println("\n= ALL VENDOR PROFILES ");
+        vendors.forEach(CustomUser::displayProfile);    // Polymorphic call
+        System.out.println("\n= ALL OFFICER PROFILES =");
+        officials.forEach(CustomUser::displayProfile);  // Same method, different output
+    }
+
+    // Strategic market occupancy report
+    public void generateStrategicReport() {
+        long   totalVendors   = vendors.size();
+        long   activeVendors  = vendors.stream().filter(v -> v.getRawStatus().equals("ACTIVE")).count();
+        long   femaleVendors  = vendors.stream().filter(v -> v.getGender().equalsIgnoreCase("F")).count();
+        long   occupied       = spaces.stream().filter(MarketSpace::isOccupied).count();
+        long   available      = spaces.size() - occupied;
+        double occupancyRate  = spaces.isEmpty() ? 0 : (double) occupied / spaces.size() * 100;
+        double monthlyRevenue = spaces.stream()
+            .filter(MarketSpace::isOccupied)
+            .mapToDouble(MarketSpace::getMonthlyRent).sum();
+
+        System.out.println("\n= KCCA STRATEGIC REPORT =");
+        System.out.println("  Total Registered Vendors  : " + totalVendors);
+        System.out.println("  Active Vendors            : " + activeVendors);
+        System.out.println("  Female Vendors            : " + femaleVendors
+                         + " (" + (totalVendors > 0 ? femaleVendors * 100 / totalVendors : 0) + "%)");
+        System.out.println("  Market Occupancy Rate     : " + String.format("%.1f", occupancyRate) + "%");
+        System.out.println("  Spaces Occupied           : " + occupied);
+        System.out.println("  Spaces Available          : " + available);
+        System.out.println("  Est. Monthly Revenue (UGX): " + monthlyRevenue);
+        System.out.println("  Open Grievances           : " +
+            grievances.stream().filter(g -> g.getStatus().equals(GrievanceReport.STATUS_OPEN)).count());
+        System.out.println("=\n");
+    }
+
+    // List vendors not yet assigned to a market space
+    public void printUnmatchedVendors() {
+        System.out.println("\n= UNMATCHED VENDORS =");
+        vendors.stream()
+            .filter(v -> v.getAssignedMarket()  null)
+            .sorted((a, b) -> Double.compare(b.getPriorityScore(), a.getPriorityScore()))
+            .forEach(v -> System.out.println(
+                "  " + v.getEntityID()
+                + " | " + v.getName()
+                + " | Capital: UGX " + v.getCapitalAmount()
+                + " | Priority Score: " + v.getPriorityScore()));
+        System.out.println("=\n");
+    }
+}
+
+
+// 
+// FILE 8: Main.java
+// Program entry point — full system demonstration (13 steps)
+// 
+
+public class Main {
+
+    public static void main(String[] args) {
+
+        // Step 1: Initialise the system
+        VendorManagementSystem system = new VendorManagementSystem();
+
+        // Step 2: Register KCCA Officials
+        KCCAOfficial admin = new KCCAOfficial(
+            "O001", "Sharifah Buzeki", "s.buzeki@kcca.go.ug",
+            "hashedPass01", KCCAOfficial.ROLE_ADMINISTRATOR, "CBD");
+
+        KCCAOfficial inspector = new KCCAOfficial(
+            "O002", "Daniel Nuweabine", "d.nuweabine@kcca.go.ug",
+            "hashedPass02", KCCAOfficial.ROLE_INSPECTOR, "Nakawa");
+
+        admin.register();
+        inspector.register();
+        system.addOfficial(admin);
+        system.addOfficial(inspector);
+
+        // Step 3: Create vendors
+        Vendor v1 = new Vendor(
+            "V001", "Sarah Naggayi", "sarah@gmail.com", "pass01",
+            "Food", 50000, "F", true, "Kawempe", "1990-03-14");
+
+        Vendor v2 = new Vendor(
+            "V002", "Joseph Bazaire", "joseph@gmail.com", "pass02",
+            "Footwear", 200000, "M", false, "Makindye", "1985-07-22");
+
+        Vendor v3 = new Vendor(
+            "V003", "Aisha Nalwoga", "aisha@gmail.com", "pass03",
+            "Clothing", 80000, "F", true, "Rubaga", "1995-11-05");
+
+        Vendor v4 = new Vendor(
+            "V004", "Rogers Katanyooleka", "rogers@gmail.com", "pass04",
+            "Electronics", 350000, "M", false, "Nakawa", "1988-01-30");
+
+        system.addVendor(v1);
+        system.addVendor(v2);
+        system.addVendor(v3);
+        system.addVendor(v4);
+
+        // Step 4: Create market spaces
+        MarketSpace s1 = new MarketSpace(
+            "US-12", "Usafi Market",    "Usafi Market, Stall 12",    "CBD",    45000, "PUBLIC");
+        MarketSpace s2 = new MarketSpace(
+            "BS-07", "Busega Market",   "Busega Market, Stall 7",    "CBD",    60000, "PUBLIC");
+        MarketSpace s3 = new MarketSpace(
+            "KW-03", "Kamwokya Market", "Kamwokya Market, Stall 3",  "CBD",    35000, "PUBLIC");
+        MarketSpace s4 = new MarketSpace(
+            "NK-15", "Nakawa Market",   "Nakawa Market, Stall 15",   "Nakawa", 70000, "PRIVATE");
+
+        system.addMarketSpace(s1);
+        system.addMarketSpace(s2);
+        system.addMarketSpace(s3);
+        system.addMarketSpace(s4);
+
+        // Step 5: Register all vendors
+        System.out.println("\n Registering Vendors ");
+        system.registerAllVendors();
+
+        // Step 6: Auto-allocate vendors to best available spaces
+        system.autoAllocateAll();
+
+        // Step 7: Inspector manually relocates a vendor
+        System.out.println("\n Manual Relocation by Inspector ");
+        inspector.relocateVendor(v2, s2);
+
+        // Step 8: Vendor submits a grievance
+        System.out.println("\n Grievance Submitted ");
+        system.submitGrievance(v3, GrievanceReport.TYPE_SPACE_UNAVAILABLE,
+            "Kamwokya Stall 3 listed as available but found locked on arrival.");
+
+        // Step 9: Admin resolves the grievance
+        system.resolveGrievance(admin, "GRV-0001",
+            "Stall key issued to vendor. Maintenance team notified.");
+
+        // Step 10: Admin updates a vendor status
+        system.updateVendorStatus(admin, "V001", "ACTIVE");
+
+        // Step 11: Display all profiles (Polymorphism demonstration)
+        system.displayAllProfiles();
+
+        // Step 12: Generate all reports
+        system.generateStrategicReport();
+        system.printUnmatchedVendors();
+        system.printGrievanceReport(null);
+
+        // Step 13: Print full audit trail
+        AuditLog.printFullLog();
+    }
+}
+
+
+// 
+// EXPECTED CONSOLE OUTPUT (Sample)
+// 
+
+// Officer registered: Sharifah Buzeki  | Role: ADMINISTRATOR
+// Officer registered: Daniel Nuweabine | Role: INSPECTOR
+//
+//  Registering Vendors 
+// Vendor registered successfully.
+// Licence Number : KCCA-V001-2026
+// Vendor registered successfully.
+// Licence Number : KCCA-V002-2026
+// Vendor registered successfully.
+// Licence Number : KCCA-V003-2026
+// Vendor registered successfully.
+// Licence Number : KCCA-V004-2026
+//
+//  Auto-Allocation Starting 
+// Space KW-03 assigned to Sarah Naggayi
+// Space US-12 assigned to Aisha Nalwoga
+// Space NK-15 assigned to Rogers Katanyooleka
+// No affordable space found for: Joseph Bazaire (Capital: UGX 200000.0)
+//  Auto-Allocation Complete 
+//
+// Space BS-07 assigned to Joseph Bazaire
+// AUDIT: [...] Officer:O002 | Action:RELOCATE | Target:V002 | Notes:BS-07
+//
+// Grievance GRV-0001 submitted by Aisha Nalwoga
+// Grievance GRV-0001 updated to: RESOLVED
+//
+//  KCCA STRATEGIC REPORT 
+//   Total Registered Vendors  : 4
+//   Active Vendors            : 4
+//   Female Vendors            : 2 (50%)
+//   Market Occupancy Rate     : 100.0%
+//   Spaces Occupied           : 4
+//   Spaces Available          : 0
+//   Est. Monthly Revenue (UGX): 210000.0
+//   Open Grievances           : 0
+// 
